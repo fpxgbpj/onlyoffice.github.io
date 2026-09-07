@@ -1494,6 +1494,72 @@ HELPERS.slide.push((function(){
 })());
 HELPERS.slide.push((function(){
 	let func = new RegisteredFunction({
+		"name": "addNoteToSlide",
+		"description": "Adds a note to the slide",
+		"parameters": {
+			"type": "object",
+			"properties": {
+				"slideNumber": {
+					"type": "number",
+					"description": "Slide number to add shape to",
+					"minimum": 1
+				},
+				"text": {
+					"type": "string",
+					"description": "text to add to the note"
+				}
+			},
+			"required": []
+		},
+		"examples": [
+			{
+				"prompt": "add a note with the following content to slide 3",
+				"arguments": { "slideNumber": 2, "text": "This is a talking point" }
+			}
+		]
+	});
+	
+	func.call = async function(params) {
+		Asc.scope.params = params;
+		let callResult = await Asc.Editor.callCommand(function () {
+				let presentation = Api.GetPresentation();
+				let slide;
+
+				if (Asc.scope.params.slideNumber) {
+					slide = presentation.GetSlideByIndex(Asc.scope.params.slideNumber - 1);
+					if (!slide) return {error: "slide_not_found", slidesCount: presentation.GetSlidesCount()};
+				}
+				else {
+					slide = presentation.GetCurrentSlide();
+				}
+
+				if (!slide) return;
+
+				if (!Asc.scope.params.text) {
+					return {error: "missing_text"};
+				}
+				let text = Asc.scope.params.text;
+
+				if (!slide.AddNotesText(text)){
+					return {error: "failed_to_add_note", text: text, slideNumber: slideNumber}
+				}
+		});
+
+		if (callResult && callResult.error === "slide_not_found") {
+			throw new window.AgentState.ToolError("Slide " + params.slideNumber + " does not exist! The presentation has " + callResult.slidesCount + " slides.");
+		}
+		if (callResult && callResult.error === "missing_text") {
+			throw new window.AgentState.ToolError("No text was passed to the addNoteToSlide");
+		}
+		if (callResult && callResult.error === "failed_to_add_note") {
+			throw new window.AgentState.ToolError("failed to add note. Parametes: Text: "+ callResult.text+"slideNumber: "+callResult.slideNumber);
+		}
+	};
+
+	return func;
+})());
+HELPERS.slide.push((function(){
+	let func = new RegisteredFunction({
 		"name": "addShapeToSlide",
 		"description": "Adds a shape to the slide with optional text (139x42mm, centered, blue fill with dark border)",
 		"parameters": {
@@ -8152,6 +8218,7 @@ HELPERS.names.word = {
 HELPERS.names.slide = {
 	"addChartToSlide": "Insert Chart",
 	"addNewSlide": "Add New Slide",
+	"addNoteToSlide": "Insert Shape",
 	"addShapeToSlide": "Insert Shape",
 	"addTableToSlide": "Insert Table",
 	"addTextToPlaceholder": "Insert Text",
