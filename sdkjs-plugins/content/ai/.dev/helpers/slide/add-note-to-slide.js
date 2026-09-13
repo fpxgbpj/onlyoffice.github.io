@@ -165,7 +165,6 @@
 				console.log(slideContent);
 			}
 			return {
-				slideJson: slide.ToJSON(true, true, true, true),
 				slideContentObj: slideContent
 			};
 		});
@@ -232,7 +231,8 @@
 
 		callResult = await Asc.Editor.callCommand(function () {
 			// Push result to notes
-			let slide = Api.FromJSON(slideJson);
+			let presentation = Api.GetPresentation();
+			let slide = presentation.GetSlideByIndex(Asc.scope.params.slideNumber - 1);
 			if (!slide.AddNotesText(text)) {
 				return { error: "failed_to_add_note", text: text, slideNumber: slide.GetSlideIndex() }
 			}
