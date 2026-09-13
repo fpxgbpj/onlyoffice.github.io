@@ -1704,7 +1704,6 @@ HELPERS.slide.push((function () {
 			throw new window.AgentState.ToolError("failed to add note. Parametes: Text: " + callResult.text + ", slideNumber: " + callResult.slideNumber);
 		}
 	};
-	console.log(i++);
 
 	return func;
 })());
