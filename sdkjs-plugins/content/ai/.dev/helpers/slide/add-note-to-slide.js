@@ -68,10 +68,11 @@
 
 	func.call = async function (params) {
 		Asc.scope.params = params;
+		let slideContent = '';
+		// Read, compute and validate parameters
 		let callResult = await Asc.Editor.callCommand(function () {
 			let presentation = Api.GetPresentation();
 			let slide;
-			// Read, compute and validate parameters
 			if (!Asc.scope.params.text && !Asc.scope.params.request) {
 				return { error: "missing_text" };
 			}
@@ -89,9 +90,7 @@
 
 			if (!slide) return;
 
-			// Begin implementation. Note that text should be null if it is an LLM request.
-			let text = Asc.scope.params.text;
-
+			// Fetch slide content for LLM case
 			if (Asc.scope.params.request) {
 				let request = Asc.scope.params.request;
 				// Get slide content. Tolerate errors.
@@ -121,7 +120,7 @@
 					}
 				}
 				catch (e) { }
-				
+
 				let shapesResult = shapesContent.join("\n\n");
 
 				// Get slide content from tables. Tolerate errors.
@@ -152,58 +151,66 @@
 				catch (e) { }
 				let tableJsonContents = JSON.stringify(tableResults)
 
-				let slideContent = "Plain text of the slide: " + shapesResult + "\n\n" + "Contents of tables on the slide: " + tableJsonContents;
-				// Create LLM request
-				let llmPrompt =
-					`You are an AI chatbox. You are tasked to generate notes to a specific slide of a presentation. 
-					To do that, you should primarily follow the user's request which is: ${request}
-					To enrich your output, you should use the slide's content: ${slideContent}
-					Note that the slide contents and tables, may be empty. 
-					Do note make stuff up. If there is not enough context to generate notes, simply return "Not enough content"
-					If the request and presentation are not in english try to detect the language and match it in your output. 
-					`
-				let requestEngine = AI.Request.create(AI.ActionType.Chat);
-				if (!requestEngine)
-					return;
-
-				let isSendedEndLongAction = false;
-				async function checkEndAction() {
-					if (!isSendedEndLongAction) {
-						await Asc.Editor.callMethod("EndAction", ["Block", "AI (" + requestEngine.modelUI.name + ")"]);
-						isSendedEndLongAction = true;
-					}
-				}
-
-				await Asc.Editor.callMethod("StartAction", ["Block", "AI (" + requestEngine.modelUI.name + ")"]);
-				await Asc.Editor.callMethod("StartAction", ["GroupActions"]);
-
-				text = await requestEngine.chatRequest(llmPrompt, false, async function (data) {
-					if (!data)
-						return;
-					await checkEndAction();
-				});
-
-				await checkEndAction();
-				await Asc.Editor.callMethod("EndAction", ["GroupActions"]);
+				slideContent = "Plain text of the slide: " + shapesResult + "\n\n" + "Contents of tables on the slide: " + tableJsonContents;
 			}
-
-			// Push result to notes
-			if (!slide.AddNotesText(text)) {
-				return { error: "failed_to_add_note", text: text, slideNumber: slideNumber }
-			}
-		});
-
+		})
 		if (callResult && callResult.error === "slide_not_found") {
 			throw new window.AgentState.ToolError("Slide " + params.slideNumber + " does not exist! The presentation has " + callResult.slidesCount + " slides.");
 		}
 		if (callResult && callResult.error === "missing_text") {
 			throw new window.AgentState.ToolError("No text was passed to the addNoteToSlide");
 		}
-		if (callResult && callResult.error === "failed_to_add_note") {
-			throw new window.AgentState.ToolError("failed to add note. Parametes: Text: " + callResult.text + ", slideNumber: " + callResult.slideNumber);
-		}
 		if (callResult && callResult.error === "invalid_text_and_request") {
 			throw new window.AgentState.ToolError("failed to add note it must be either a plain text or an LLM prompt, request cannot contain both. Parametes: Text: " + callResult.text + ", request: " + callResult.request);
+		}
+
+		// Should be null or empty if LLM branch. 
+		let text = Asc.scope.params.text;
+
+		if (Asc.scope.params.request) {
+			// Create LLM request
+			let llmPrompt =
+				`You are an AI chatbox. You are tasked to generate notes to a specific slide of a presentation. 
+					To do that, you should primarily follow the user's request which is: ${request}
+					To enrich your output, you should use the slide's content: ${slideContent}
+					Note that the slide contents and tables, may be empty. 
+					Do note make stuff up. If there is not enough context to generate notes, simply return "Not enough content"
+					If the request and presentation are not in english try to detect the language and match it in your output. 
+					`
+			let requestEngine = AI.Request.create(AI.ActionType.Chat);
+			if (!requestEngine)
+				return;
+
+			let isSendedEndLongAction = false;
+			async function checkEndAction() {
+				if (!isSendedEndLongAction) {
+					await Asc.Editor.callMethod("EndAction", ["Block", "AI (" + requestEngine.modelUI.name + ")"]);
+					isSendedEndLongAction = true;
+				}
+			}
+
+			await Asc.Editor.callMethod("StartAction", ["Block", "AI (" + requestEngine.modelUI.name + ")"]);
+			await Asc.Editor.callMethod("StartAction", ["GroupActions"]);
+
+			text = await requestEngine.chatRequest(llmPrompt, false, async function (data) {
+				if (!data)
+					return;
+				await checkEndAction();
+			});
+
+			await checkEndAction();
+			await Asc.Editor.callMethod("EndAction", ["GroupActions"]);
+		}
+
+		callResult = await Asc.Editor.callCommand(function () {
+			// Push result to notes
+			if (!slide.AddNotesText(text)) {
+				return { error: "failed_to_add_note", text: text, slideNumber: slideNumber }
+			}
+		})
+
+		if (callResult && callResult.error === "failed_to_add_note") {
+			throw new window.AgentState.ToolError("failed to add note. Parametes: Text: " + callResult.text + ", slideNumber: " + callResult.slideNumber);
 		}
 	};
 
