@@ -1624,10 +1624,12 @@ HELPERS.slide.push((function () {
 				console.log('finished reading tables');
 
 				slideContent = "Plain text of the slide: " + shapesResult + "\n\n" + "Contents of tables on the slide: " + tableJsonContents;
+				console.log(slideContent);
+
 			}
 			return {
-				slide: slide,
-				slideContent: slideContent
+				slideObj: slide,
+				slideContentObj: slideContent
 			}
 		})
 		if (callResult && callResult.error === "slide_not_found") {
@@ -1645,8 +1647,8 @@ HELPERS.slide.push((function () {
 
 		// Should be null or empty if LLM branch. 
 		var text = Asc.scope.params.text;
-		var slide = callResult.slide;
-		var slideContent = callResult.slideContent;
+		var slide = callResult.slideObj;
+		var slideContent = callResult.slideContentObj;
 
 		if (!slide) return;
 		console.log('valid slide num');
