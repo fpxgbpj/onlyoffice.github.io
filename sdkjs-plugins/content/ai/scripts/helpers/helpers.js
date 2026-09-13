@@ -1529,11 +1529,11 @@ HELPERS.slide.push((function () {
 
 	func.call = async function (params) {
 		Asc.scope.params = params;
-		let slideContent = '';
+		var slideContent = '';
+		var slide;
 		// Read, compute and validate parameters
 		let callResult = await Asc.Editor.callCommand(function () {
 			let presentation = Api.GetPresentation();
-			let slide;
 			if (!Asc.scope.params.text && !Asc.scope.params.request) {
 				return { error: "missing_text" };
 			}
@@ -1577,7 +1577,7 @@ HELPERS.slide.push((function () {
 						}
 						// Tolerate failures reading slide content
 						catch (e) { }
-						if (shapeText) result.push(shapeText);
+						if (shapeText) shapesContent.push(shapeText);
 					}
 				}
 				catch (e) { }
@@ -1626,13 +1626,13 @@ HELPERS.slide.push((function () {
 		}
 
 		// Should be null or empty if LLM branch. 
-		let text = Asc.scope.params.text;
+		var text = Asc.scope.params.text;
 
 		if (Asc.scope.params.request) {
 			// Create LLM request
 			let llmPrompt =
 				`You are an AI chatbox. You are tasked to generate notes to a specific slide of a presentation. 
-					To do that, you should primarily follow the user's request which is: ${request}
+					To do that, you should primarily follow the user's request which is: ${Asc.scope.params.request}
 					To enrich your output, you should use the slide's content: ${slideContent}
 					Note that the slide contents and tables, may be empty. 
 					Do note make stuff up. If there is not enough context to generate notes, simply return "Not enough content"
@@ -1666,7 +1666,7 @@ HELPERS.slide.push((function () {
 		callResult = await Asc.Editor.callCommand(function () {
 			// Push result to notes
 			if (!slide.AddNotesText(text)) {
-				return { error: "failed_to_add_note", text: text, slideNumber: slideNumber }
+				return { error: "failed_to_add_note", text: text, slideNumber: slide.GetSlideIndex() }
 			}
 		})
 
