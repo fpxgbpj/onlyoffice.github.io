@@ -1529,8 +1529,6 @@ HELPERS.slide.push((function () {
 
 	func.call = async function (params) {
 		Asc.scope.params = params;
-		var slideContent = '';
-		var slide;
 		// Read, compute and validate parameters
 		let callResult = await Asc.Editor.callCommand(function () {
 			let presentation = Api.GetPresentation();
@@ -1614,6 +1612,10 @@ HELPERS.slide.push((function () {
 
 				slideContent = "Plain text of the slide: " + shapesResult + "\n\n" + "Contents of tables on the slide: " + tableJsonContents;
 			}
+			return {
+				slide : slide,
+				slideContent : slideContent
+			}
 		})
 		if (callResult && callResult.error === "slide_not_found") {
 			throw new window.AgentState.ToolError("Slide " + params.slideNumber + " does not exist! The presentation has " + callResult.slidesCount + " slides.");
@@ -1624,10 +1626,15 @@ HELPERS.slide.push((function () {
 		if (callResult && callResult.error === "invalid_text_and_request") {
 			throw new window.AgentState.ToolError("failed to add note it must be either a plain text or an LLM prompt, request cannot contain both. Parametes: Text: " + callResult.text + ", request: " + callResult.request);
 		}
+		
 
 		// Should be null or empty if LLM branch. 
 		var text = Asc.scope.params.text;
-
+		var slide = callResult.slide;
+		var slideContent = callResult.slideContent;
+		
+		if (!slide) return;
+		
 		if (Asc.scope.params.request) {
 			// Create LLM request
 			let llmPrompt =
