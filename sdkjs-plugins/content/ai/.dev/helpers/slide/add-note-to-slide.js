@@ -68,12 +68,11 @@
 
 	func.call = async function (params) {
 		Asc.scope.params = params;
-		var slide;
-		var slideContent;
 		// Read, compute and validate parameters
 		let callResult = await Asc.Editor.callCommand(function () {
 			let presentation = Api.GetPresentation();
-			
+			let slide;
+			let slideContent;
 			console.log('start');
 			if (!Asc.scope.params.text && !Asc.scope.params.request) {
 				return { error: "missing_text" };
@@ -131,43 +130,30 @@
 				console.log('start reading tables');
 
 				// Get slide content from tables. Tolerate errors.
-				let tableResults = []
+				let tableResults = [];
 				try {
 					let aTables = slide.GetAllTables();
 					for (let i = 0; i < aTables.length; i++) {
 						let table = aTables[i];
-						let rows = [];
-						let nRows = table.GetRowsCount ? table.GetRowsCount() : 0;
-						let nCols = table.GetColsCount ? table.GetColsCount() : 0;
-						for (let r = 0; r < nRows; r++) {
-							let row = [];
-							for (let c = 0; c < nCols; c++) {
-								let cell = table.GetCell(r, c);
-								let text = "";
-								if (cell && cell.GetContent) {
-									let content = cell.GetContent();
-									if (content && content.GetText) text = content.GetText();
-								}
-								row.push(text);
-							}
-							rows.push(row);
-						}
-						tableResults.push(rows);
+						tableResults.push(table.ToJSON(false));
 					}
 				}
 				catch (e) {
 					console.log("failed to read table contents")
 					console.log(e)
 				}
-				let tableJsonContents = JSON.stringify(tableResults)
+				let tableJsonContents = JSON.stringify(tableResults);
 				console.log('finished reading tables');
 
 				slideContent = "Plain text of the slide: " + shapesResult + "\n\n" + "Contents of tables on the slide: " + tableJsonContents;
 				console.log(slideContent);
-
 			}
-			return 
-		})
+			return {
+				slideObj: slide,
+				slideContentObj: slideContent
+			};
+		});
+
 		if (callResult && callResult.error === "slide_not_found") {
 			throw new window.AgentState.ToolError("Slide " + params.slideNumber + " does not exist! The presentation has " + callResult.slidesCount + " slides.");
 		}
@@ -183,10 +169,8 @@
 
 		// Should be null or empty if LLM branch. 
 		var text = Asc.scope.params.text;
-		// var slide = callResult.slideObj;
-		// var slideContent = callResult.slideContentObj;
 
-		if (!slide) return;
+		if (!callResult.slideObj) return;
 		console.log('valid slide num');
 
 		if (Asc.scope.params.request) {
@@ -196,7 +180,7 @@
 			let llmPrompt =
 				`You are an AI chatbox. You are tasked to generate notes to a specific slide of a presentation. 
 					To do that, you should primarily follow the user's request which is: ${Asc.scope.params.request}
-					To enrich your output, you should use the slide's content: ${slideContent}
+					To enrich your output, you should use the slide's content: ${callResult.slideContentObj}
 					Note that the slide contents and tables, may be empty. 
 					Do note make stuff up. If there is not enough context to generate notes, simply return "Not enough content"
 					If the request and presentation are not in english try to detect the language and match it in your output. 
@@ -230,8 +214,8 @@
 
 		callResult = await Asc.Editor.callCommand(function () {
 			// Push result to notes
-			if (!slide.AddNotesText(text)) {
-				return { error: "failed_to_add_note", text: text, slideNumber: slide.GetSlideIndex() }
+			if (!callResult.slideObj.AddNotesText(text)) {
+				return { error: "failed_to_add_note", text: text, slideNumber: callResult.slideObj.GetSlideIndex() }
 			}
 		})
 		console.log('end');
