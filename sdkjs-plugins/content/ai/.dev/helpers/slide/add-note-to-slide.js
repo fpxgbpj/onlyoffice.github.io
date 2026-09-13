@@ -68,12 +68,12 @@
 
 	func.call = async function (params) {
 		Asc.scope.params = params;
-		var i = 1;
+		var slide;
+		var slideContent;
 		// Read, compute and validate parameters
 		let callResult = await Asc.Editor.callCommand(function () {
 			let presentation = Api.GetPresentation();
-			let slide;
-			let slideContent;
+			
 			console.log('start');
 			if (!Asc.scope.params.text && !Asc.scope.params.request) {
 				return { error: "missing_text" };
@@ -166,10 +166,7 @@
 				console.log(slideContent);
 
 			}
-			return {
-				slideObj: slide,
-				slideContentObj: slideContent
-			}
+			return 
 		})
 		if (callResult && callResult.error === "slide_not_found") {
 			throw new window.AgentState.ToolError("Slide " + params.slideNumber + " does not exist! The presentation has " + callResult.slidesCount + " slides.");
@@ -186,8 +183,8 @@
 
 		// Should be null or empty if LLM branch. 
 		var text = Asc.scope.params.text;
-		var slide = callResult.slideObj;
-		var slideContent = callResult.slideContentObj;
+		// var slide = callResult.slideObj;
+		// var slideContent = callResult.slideContentObj;
 
 		if (!slide) return;
 		console.log('valid slide num');
