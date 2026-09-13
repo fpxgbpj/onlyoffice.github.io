@@ -72,6 +72,7 @@
 		let callResult = await Asc.Editor.callCommand(function () {
 			let presentation = Api.GetPresentation();
 			let slide;
+			let slideContent;
 			if (!Asc.scope.params.text && !Asc.scope.params.request) {
 				return { error: "missing_text" };
 			}
