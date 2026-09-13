@@ -185,9 +185,6 @@
 		// Should be null or empty if LLM branch. 
 		var text = Asc.scope.params.text;
 
-		if (!callResult.slideJson) return;
-		console.log('valid slide json');
-
 		if (Asc.scope.params.request) {
 			console.log('begin llm request');
 
