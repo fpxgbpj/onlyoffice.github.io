@@ -229,7 +229,14 @@
 			// Push result to notes
 			let text = Asc.scope.addNotesResult;
 			let presentation = Api.GetPresentation();
-			let slide = presentation.GetSlideByIndex(Asc.scope.params.slideNumber - 1);
+			let slide;
+			if (Asc.scope.params.slideNumber) {
+				slide = presentation.GetSlideByIndex(Asc.scope.params.slideNumber - 1);
+				if (!slide) return { error: "slide_not_found", slidesCount: presentation.GetSlidesCount() };
+			}
+			else {
+				slide = presentation.GetCurrentSlide();
+			}
 			if (!slide.AddNotesText(text)) {
 				return { error: "failed_to_add_note", text: text, slideNumber: slide.GetSlideIndex() }
 			}
