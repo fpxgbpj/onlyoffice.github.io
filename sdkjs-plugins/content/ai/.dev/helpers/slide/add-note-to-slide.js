@@ -74,14 +74,14 @@
 			let presentation = Api.GetPresentation();
 			let slide;
 			let slideContent;
-			console.log(i++);
+			console.log('start');
 			if (!Asc.scope.params.text && !Asc.scope.params.request) {
 				return { error: "missing_text" };
 			}
 			if (Asc.scope.params.text && Asc.scope.params.request) {
 				return { error: "invalid_text_and_request" };
 			}
-			console.log(i++);
+			console.log('valid input type');
 
 			if (Asc.scope.params.slideNumber) {
 				slide = presentation.GetSlideByIndex(Asc.scope.params.slideNumber - 1);
@@ -90,14 +90,13 @@
 			else {
 				slide = presentation.GetCurrentSlide();
 			}
-			console.log(i++);
 
 			if (!slide) return;
-			console.log(i++);
+			console.log('valid slide num');
 
 			// Fetch slide content for LLM case
 			if (Asc.scope.params.request) {
-				console.log(i++);
+				console.log('start reading slide content');
 
 				// Get slide content. Tolerate errors.
 				let shapesContent = [];
@@ -126,10 +125,10 @@
 					}
 					if (shapeText) shapesContent.push(shapeText);
 				}
-				console.log(i++);
+				console.log('finished reading shapes');
 
 				let shapesResult = shapesContent.join("\n\n");
-				console.log(i++);
+				console.log('start reading tables');
 
 				// Get slide content from tables. Tolerate errors.
 				let tableResults = []
@@ -161,7 +160,7 @@
 					console.log(e)
 				}
 				let tableJsonContents = JSON.stringify(tableResults)
-				console.log(i++);
+				console.log('finished reading tables');
 
 				slideContent = "Plain text of the slide: " + shapesResult + "\n\n" + "Contents of tables on the slide: " + tableJsonContents;
 			}
@@ -180,7 +179,7 @@
 			throw new window.AgentState.ToolError("failed to add note it must be either a plain text or an LLM prompt, request cannot contain both. Parametes: Text: " + callResult.text + ", request: " + callResult.request);
 		}
 
-		console.log(i++);
+		console.log('finished 1st Asc cmd');
 		console.log(callResult);
 
 		// Should be null or empty if LLM branch. 
@@ -189,10 +188,10 @@
 		var slideContent = callResult.slideContent;
 
 		if (!slide) return;
-		console.log(i++);
+		console.log('valid slide num');
 
 		if (Asc.scope.params.request) {
-			console.log(i++);
+			console.log('begin llm request');
 
 			// Create LLM request
 			let llmPrompt =
@@ -206,7 +205,7 @@
 			let requestEngine = AI.Request.create(AI.ActionType.Chat);
 			if (!requestEngine)
 				return;
-			console.log(i++);
+			console.log('valid request engine');
 
 			let isSendedEndLongAction = false;
 			async function checkEndAction() {
@@ -228,7 +227,7 @@
 			await checkEndAction();
 			await Asc.Editor.callMethod("EndAction", ["GroupActions"]);
 		}
-		console.log(i++);
+		console.log('finished LLM request');
 
 		callResult = await Asc.Editor.callCommand(function () {
 			// Push result to notes
@@ -236,7 +235,7 @@
 				return { error: "failed_to_add_note", text: text, slideNumber: slide.GetSlideIndex() }
 			}
 		})
-		console.log(i++);
+		console.log('end');
 		console.log(callResult);
 
 		if (callResult && callResult.error === "failed_to_add_note") {
