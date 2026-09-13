@@ -1492,57 +1492,166 @@ HELPERS.slide.push((function(){
 
 	return func;
 })());
-HELPERS.slide.push((function(){
+HELPERS.slide.push((function () {
 	let func = new RegisteredFunction({
 		"name": "addNoteToSlide",
-		"description": "Adds a note to the slide",
+		"description": "Adds a note to the slide. If intent is passed in the text parameter, precise text is added to the notes. If intent is passed in the request parameters, it interpreted as an LLM prompt",
 		"parameters": {
 			"type": "object",
 			"properties": {
 				"slideNumber": {
 					"type": "number",
-					"description": "Slide number to add shape to",
+					"description": "Slide number to add note to",
 					"minimum": 1
 				},
 				"text": {
 					"type": "string",
 					"description": "text to add to the note"
+				},
+				"request": {
+					"type": "string",
+					"description": "LLM prompt describing what the user intends to add to the notes"
 				}
 			},
 			"required": []
 		},
 		"examples": [
 			{
-				"prompt": "add a note with the following content to slide 3",
-				"arguments": { "slideNumber": 2, "text": "This is a talking point" }
-			}
+				"prompt": "add a note with the following content to slide 3: Hello, world!",
+				"arguments": { "slideNumber": 3, "text": "Hello, world!" }
+			},
+			{
+				"prompt": "add talking points to slide 2",
+				"arguments": { "slideNumber": 2, "request": "add talking points to slide 2" }
+			},
 		]
 	});
-	
-	func.call = async function(params) {
+
+	func.call = async function (params) {
 		Asc.scope.params = params;
 		let callResult = await Asc.Editor.callCommand(function () {
-				let presentation = Api.GetPresentation();
-				let slide;
+			let presentation = Api.GetPresentation();
+			let slide;
+			// Read, compute and validate parameters
+			if (!Asc.scope.params.text && !Asc.scope.params.request) {
+				return { error: "missing_text" };
+			}
+			if (Asc.scope.params.text && Asc.scope.params.request) {
+				return { error: "invalid_text_and_request" };
+			}
 
-				if (Asc.scope.params.slideNumber) {
-					slide = presentation.GetSlideByIndex(Asc.scope.params.slideNumber - 1);
-					if (!slide) return {error: "slide_not_found", slidesCount: presentation.GetSlidesCount()};
+			if (Asc.scope.params.slideNumber) {
+				slide = presentation.GetSlideByIndex(Asc.scope.params.slideNumber - 1);
+				if (!slide) return { error: "slide_not_found", slidesCount: presentation.GetSlidesCount() };
+			}
+			else {
+				slide = presentation.GetCurrentSlide();
+			}
+
+			if (!slide) return;
+
+			// Begin implementation. Note that text should be null if it is an LLM request.
+			let text = Asc.scope.params.text;
+
+			if (Asc.scope.params.request) {
+				let request = Asc.scope.params.request;
+				// Get slide content. Tolerate errors.
+				let shapesContent = [];
+				try {
+					let shapes = slide.GetAllShapes();
+					for (let i = 0; i < shapes.length; i++) {
+						let shape = shapes[i];
+						let shapeText = "";
+						try {
+							let content = shape.GetDocContent();
+							if (content) {
+								let count = content.GetElementsCount();
+								let parts = [];
+								for (let j = 0; j < count; j++) {
+									let el = content.GetElement(j);
+									if (el && el.GetText) {
+										parts.push(el.GetText());
+									}
+								}
+								shapeText = parts.join("\n");
+							}
+						}
+						// Tolerate failures reading slide content
+						catch (e) { }
+						if (shapeText) result.push(shapeText);
+					}
 				}
-				else {
-					slide = presentation.GetCurrentSlide();
+				catch (e) { }
+				
+				let shapesResult = shapesContent.join("\n\n");
+
+				// Get slide content from tables. Tolerate errors.
+				let tableResults = []
+				try {
+					let aTables = slide.GetAllTables();
+					for (let i = 0; i < aTables.length; i++) {
+						let table = aTables[i];
+						let rows = [];
+						let nRows = table.GetRowsCount ? table.GetRowsCount() : 0;
+						let nCols = table.GetColsCount ? table.GetColsCount() : 0;
+						for (let r = 0; r < nRows; r++) {
+							let row = [];
+							for (let c = 0; c < nCols; c++) {
+								let cell = table.GetCell(r, c);
+								let text = "";
+								if (cell && cell.GetContent) {
+									let content = cell.GetContent();
+									if (content && content.GetText) text = content.GetText();
+								}
+								row.push(text);
+							}
+							rows.push(row);
+						}
+						tableResults.push(rows);
+					}
+				}
+				catch (e) { }
+				let tableJsonContents = JSON.stringify(tableResults)
+
+				let slideContent = "Plain text of the slide: " + shapesResult + "\n\n" + "Contents of tables on the slide: " + tableJsonContents;
+				// Create LLM request
+				let llmPrompt =
+					`You are an AI chatbox. You are tasked to generate notes to a specific slide of a presentation. 
+					To do that, you should primarily follow the user's request which is: ${request}
+					To enrich your output, you should use the slide's content: ${slideContent}
+					Note that the slide contents and tables, may be empty. 
+					Do note make stuff up. If there is not enough context to generate notes, simply return "Not enough content"
+					If the request and presentation are not in english try to detect the language and match it in your output. 
+					`
+				let requestEngine = AI.Request.create(AI.ActionType.Chat);
+				if (!requestEngine)
+					return;
+
+				let isSendedEndLongAction = false;
+				async function checkEndAction() {
+					if (!isSendedEndLongAction) {
+						await Asc.Editor.callMethod("EndAction", ["Block", "AI (" + requestEngine.modelUI.name + ")"]);
+						isSendedEndLongAction = true;
+					}
 				}
 
-				if (!slide) return;
+				await Asc.Editor.callMethod("StartAction", ["Block", "AI (" + requestEngine.modelUI.name + ")"]);
+				await Asc.Editor.callMethod("StartAction", ["GroupActions"]);
 
-				if (!Asc.scope.params.text) {
-					return {error: "missing_text"};
-				}
-				let text = Asc.scope.params.text;
+				text = await requestEngine.chatRequest(llmPrompt, false, async function (data) {
+					if (!data)
+						return;
+					await checkEndAction();
+				});
 
-				if (!slide.AddNotesText(text)){
-					return {error: "failed_to_add_note", text: text, slideNumber: slideNumber}
-				}
+				await checkEndAction();
+				await Asc.Editor.callMethod("EndAction", ["GroupActions"]);
+			}
+
+			// Push result to notes
+			if (!slide.AddNotesText(text)) {
+				return { error: "failed_to_add_note", text: text, slideNumber: slideNumber }
+			}
 		});
 
 		if (callResult && callResult.error === "slide_not_found") {
@@ -1552,7 +1661,10 @@ HELPERS.slide.push((function(){
 			throw new window.AgentState.ToolError("No text was passed to the addNoteToSlide");
 		}
 		if (callResult && callResult.error === "failed_to_add_note") {
-			throw new window.AgentState.ToolError("failed to add note. Parametes: Text: "+ callResult.text+"slideNumber: "+callResult.slideNumber);
+			throw new window.AgentState.ToolError("failed to add note. Parametes: Text: " + callResult.text + ", slideNumber: " + callResult.slideNumber);
+		}
+		if (callResult && callResult.error === "invalid_text_and_request") {
+			throw new window.AgentState.ToolError("failed to add note it must be either a plain text or an LLM prompt, request cannot contain both. Parametes: Text: " + callResult.text + ", request: " + callResult.request);
 		}
 	};
 
@@ -8218,7 +8330,7 @@ HELPERS.names.word = {
 HELPERS.names.slide = {
 	"addChartToSlide": "Insert Chart",
 	"addNewSlide": "Add New Slide",
-	"addNoteToSlide": "Insert Shape",
+	"addNoteToSlide": "Insert Note",
 	"addShapeToSlide": "Insert Shape",
 	"addTableToSlide": "Insert Table",
 	"addTextToPlaceholder": "Insert Text",
