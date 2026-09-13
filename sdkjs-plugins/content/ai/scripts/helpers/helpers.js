@@ -1532,6 +1532,7 @@ HELPERS.slide.push((function () {
 		// Read, compute and validate parameters
 		let callResult = await Asc.Editor.callCommand(function () {
 			let presentation = Api.GetPresentation();
+			let slide;
 			if (!Asc.scope.params.text && !Asc.scope.params.request) {
 				return { error: "missing_text" };
 			}
