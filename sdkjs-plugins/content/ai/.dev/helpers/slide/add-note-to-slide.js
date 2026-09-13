@@ -225,12 +225,14 @@
 
 			await checkEndAction();
 			await Asc.Editor.callMethod("EndAction", ["GroupActions"]);
+			console.log('finished LLM request');
+			console.log('LLM result: ' + text);
 		}
-		console.log('finished LLM request');
+		var slideJson = callResult.slideJson;
 
 		callResult = await Asc.Editor.callCommand(function () {
 			// Push result to notes
-			let slide = Api.FromJSON(callResult.slideJson);
+			let slide = Api.FromJSON(slideJson);
 			if (!slide.AddNotesText(text)) {
 				return { error: "failed_to_add_note", text: text, slideNumber: slide.GetSlideIndex() }
 			}
