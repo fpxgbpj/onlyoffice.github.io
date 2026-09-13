@@ -1610,7 +1610,7 @@ HELPERS.slide.push((function () {
 				console.log(slideContent);
 			}
 			return {
-				slideObj: slide,
+				slideJson: slide.ToJSON(true, true, true, true),
 				slideContentObj: slideContent
 			};
 		});
@@ -1631,8 +1631,8 @@ HELPERS.slide.push((function () {
 		// Should be null or empty if LLM branch. 
 		var text = Asc.scope.params.text;
 
-		if (!callResult.slideObj) return;
-		console.log('valid slide num');
+		if (!callResult.slideJson) return;
+		console.log('valid slide json');
 
 		if (Asc.scope.params.request) {
 			console.log('begin llm request');
@@ -1675,8 +1675,9 @@ HELPERS.slide.push((function () {
 
 		callResult = await Asc.Editor.callCommand(function () {
 			// Push result to notes
-			if (!callResult.slideObj.AddNotesText(text)) {
-				return { error: "failed_to_add_note", text: text, slideNumber: callResult.slideObj.GetSlideIndex() }
+			let slide = Api.FromJSON(callResult.slideJson);
+			if (!slide.AddNotesText(text)) {
+				return { error: "failed_to_add_note", text: text, slideNumber: slide.GetSlideIndex() }
 			}
 		})
 		console.log('end');

@@ -135,7 +135,23 @@
 					let aTables = slide.GetAllTables();
 					for (let i = 0; i < aTables.length; i++) {
 						let table = aTables[i];
-						tableResults.push(table.ToJSON(false));
+						let rows = [];
+						let nRows = table.GetRowsCount ? table.GetRowsCount() : 0;
+						let nCols = table.GetColsCount ? table.GetColsCount() : 0;
+						for (let r = 0; r < nRows; r++) {
+							let row = [];
+							for (let c = 0; c < nCols; c++) {
+								let cell = table.GetCell(r, c);
+								let text = "";
+								if (cell && cell.GetContent) {
+									let content = cell.GetContent();
+									if (content && content.GetText) text = content.GetText();
+								}
+								row.push(text);
+							}
+							rows.push(row);
+						}
+						tableResults.push(rows);
 					}
 				}
 				catch (e) {
@@ -149,7 +165,7 @@
 				console.log(slideContent);
 			}
 			return {
-				slideObj: slide,
+				slideJson: slide.ToJSON(true, true, true, true),
 				slideContentObj: slideContent
 			};
 		});
@@ -170,8 +186,8 @@
 		// Should be null or empty if LLM branch. 
 		var text = Asc.scope.params.text;
 
-		if (!callResult.slideObj) return;
-		console.log('valid slide num');
+		if (!callResult.slideJson) return;
+		console.log('valid slide json');
 
 		if (Asc.scope.params.request) {
 			console.log('begin llm request');
@@ -214,8 +230,9 @@
 
 		callResult = await Asc.Editor.callCommand(function () {
 			// Push result to notes
-			if (!callResult.slideObj.AddNotesText(text)) {
-				return { error: "failed_to_add_note", text: text, slideNumber: callResult.slideObj.GetSlideIndex() }
+			let slide = Api.FromJSON(callResult.slideJson);
+			if (!slide.AddNotesText(text)) {
+				return { error: "failed_to_add_note", text: text, slideNumber: slide.GetSlideIndex() }
 			}
 		})
 		console.log('end');
