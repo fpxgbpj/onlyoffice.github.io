@@ -1685,10 +1685,10 @@ HELPERS.slide.push((function () {
 			console.log('finished LLM request');
 			console.log('LLM result: ' + text);
 		}
-		var slideJson = callResult.slideJson;
-
+		Asc.scope.addNotesResult = text;
 		callResult = await Asc.Editor.callCommand(function () {
 			// Push result to notes
+			let text = Asc.scope.addNotesResult;
 			let presentation = Api.GetPresentation();
 			let slide = presentation.GetSlideByIndex(Asc.scope.params.slideNumber - 1);
 			if (!slide.AddNotesText(text)) {
