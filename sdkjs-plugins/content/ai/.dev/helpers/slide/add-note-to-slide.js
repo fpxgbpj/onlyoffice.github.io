@@ -68,17 +68,20 @@
 
 	func.call = async function (params) {
 		Asc.scope.params = params;
+		var i = 1;
 		// Read, compute and validate parameters
 		let callResult = await Asc.Editor.callCommand(function () {
 			let presentation = Api.GetPresentation();
 			let slide;
 			let slideContent;
+			console.log(i++);
 			if (!Asc.scope.params.text && !Asc.scope.params.request) {
 				return { error: "missing_text" };
 			}
 			if (Asc.scope.params.text && Asc.scope.params.request) {
 				return { error: "invalid_text_and_request" };
 			}
+			console.log(i++);
 
 			if (Asc.scope.params.slideNumber) {
 				slide = presentation.GetSlideByIndex(Asc.scope.params.slideNumber - 1);
@@ -87,41 +90,46 @@
 			else {
 				slide = presentation.GetCurrentSlide();
 			}
+			console.log(i++);
 
 			if (!slide) return;
+			console.log(i++);
 
 			// Fetch slide content for LLM case
 			if (Asc.scope.params.request) {
-				let request = Asc.scope.params.request;
+				console.log(i++);
+
 				// Get slide content. Tolerate errors.
 				let shapesContent = [];
-				try {
-					let shapes = slide.GetAllShapes();
-					for (let i = 0; i < shapes.length; i++) {
-						let shape = shapes[i];
-						let shapeText = "";
-						try {
-							let content = shape.GetDocContent();
-							if (content) {
-								let count = content.GetElementsCount();
-								let parts = [];
-								for (let j = 0; j < count; j++) {
-									let el = content.GetElement(j);
-									if (el && el.GetText) {
-										parts.push(el.GetText());
-									}
+				let shapes = slide.GetAllShapes();
+				for (let i = 0; i < shapes.length; i++) {
+					let shape = shapes[i];
+					let shapeText = "";
+					try {
+						let content = shape.GetDocContent();
+						if (content) {
+							let count = content.GetElementsCount();
+							let parts = [];
+							for (let j = 0; j < count; j++) {
+								let el = content.GetElement(j);
+								if (el && el.GetText) {
+									parts.push(el.GetText());
 								}
-								shapeText = parts.join("\n");
 							}
+							shapeText = parts.join("\n");
 						}
-						// Tolerate failures reading slide content
-						catch (e) { }
-						if (shapeText) shapesContent.push(shapeText);
 					}
+					// Tolerate failures reading slide content
+					catch (e) {
+						console.log("failed to read shape internal contents ")
+						console.log(e)
+					}
+					if (shapeText) shapesContent.push(shapeText);
 				}
-				catch (e) { }
+				console.log(i++);
 
 				let shapesResult = shapesContent.join("\n\n");
+				console.log(i++);
 
 				// Get slide content from tables. Tolerate errors.
 				let tableResults = []
@@ -148,14 +156,18 @@
 						tableResults.push(rows);
 					}
 				}
-				catch (e) { }
+				catch (e) {
+					console.log("failed to read table contents")
+					console.log(e)
+				}
 				let tableJsonContents = JSON.stringify(tableResults)
+				console.log(i++);
 
 				slideContent = "Plain text of the slide: " + shapesResult + "\n\n" + "Contents of tables on the slide: " + tableJsonContents;
 			}
 			return {
-				slide : slide,
-				slideContent : slideContent
+				slide: slide,
+				slideContent: slideContent
 			}
 		})
 		if (callResult && callResult.error === "slide_not_found") {
@@ -167,16 +179,21 @@
 		if (callResult && callResult.error === "invalid_text_and_request") {
 			throw new window.AgentState.ToolError("failed to add note it must be either a plain text or an LLM prompt, request cannot contain both. Parametes: Text: " + callResult.text + ", request: " + callResult.request);
 		}
-		
+
+		console.log(i++);
+		console.log(callResult);
 
 		// Should be null or empty if LLM branch. 
 		var text = Asc.scope.params.text;
 		var slide = callResult.slide;
 		var slideContent = callResult.slideContent;
-		
+
 		if (!slide) return;
-		
+		console.log(i++);
+
 		if (Asc.scope.params.request) {
+			console.log(i++);
+
 			// Create LLM request
 			let llmPrompt =
 				`You are an AI chatbox. You are tasked to generate notes to a specific slide of a presentation. 
@@ -189,6 +206,7 @@
 			let requestEngine = AI.Request.create(AI.ActionType.Chat);
 			if (!requestEngine)
 				return;
+			console.log(i++);
 
 			let isSendedEndLongAction = false;
 			async function checkEndAction() {
@@ -210,6 +228,7 @@
 			await checkEndAction();
 			await Asc.Editor.callMethod("EndAction", ["GroupActions"]);
 		}
+		console.log(i++);
 
 		callResult = await Asc.Editor.callCommand(function () {
 			// Push result to notes
@@ -217,11 +236,14 @@
 				return { error: "failed_to_add_note", text: text, slideNumber: slide.GetSlideIndex() }
 			}
 		})
+		console.log(i++);
+		console.log(callResult);
 
 		if (callResult && callResult.error === "failed_to_add_note") {
 			throw new window.AgentState.ToolError("failed to add note. Parametes: Text: " + callResult.text + ", slideNumber: " + callResult.slideNumber);
 		}
 	};
+	console.log(i++);
 
 	return func;
 })();
