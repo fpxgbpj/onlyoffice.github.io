@@ -1495,13 +1495,13 @@ HELPERS.slide.push((function(){
 HELPERS.slide.push((function () {
 	let func = new RegisteredFunction({
 		"name": "addNoteToSlide",
-		"description": "Adds a note to the slide. If intent is passed in the text parameter, precise text is added to the notes. If intent is passed in the request parameters, it interpreted as an LLM prompt",
+		"description": "Adds a note to the slide. If intent is passed in the text parameter, precise text is added to the notes. If intent is passed in the request parameters, it interpreted as an LLM prompt. If the request is meant to target multiple slides, call this function once for each slide.",
 		"parameters": {
 			"type": "object",
 			"properties": {
 				"slideNumber": {
 					"type": "number",
-					"description": "Slide number to add note to",
+					"description": "the slide number to add text to (optional, default current slide)",
 					"minimum": 1
 				},
 				"text": {
@@ -1517,12 +1517,16 @@ HELPERS.slide.push((function () {
 		},
 		"examples": [
 			{
-				"prompt": "add a note with the following content to slide 3: Hello, world!",
+				"prompt": "write a note with the following content to slide 3: Hello, world!",
 				"arguments": { "slideNumber": 3, "text": "Hello, world!" }
 			},
 			{
 				"prompt": "add talking points to slide 2",
 				"arguments": { "slideNumber": 2, "request": "add talking points to slide 2" }
+			},
+			{
+				"prompt": "make a note with AI content",
+				"arguments": { "request": "make a note with AI content" }
 			},
 		]
 	});
@@ -1551,6 +1555,15 @@ HELPERS.slide.push((function () {
 
 			if (!slide) return;
 
+			// If text is passed, return early here.
+			if (Asc.scope.params.text) {
+				if (!slide.AddNotesText(Asc.scope.params.text)) {
+					return { error: "failed_to_add_note", text: Asc.scope.params.text, slideNumber: slide.GetSlideIndex() }
+				}
+				else {
+					return;
+				}
+			}
 			// Fetch slide content for LLM case
 			if (Asc.scope.params.request) {
 
@@ -1586,6 +1599,8 @@ HELPERS.slide.push((function () {
 				let tableResults = [];
 				try {
 					let aTables = slide.GetAllTables();
+					console.log(('aTables'));
+					console.log((aTables));
 					for (let i = 0; i < aTables.length; i++) {
 						let table = aTables[i];
 						let rows = [];
@@ -1617,7 +1632,9 @@ HELPERS.slide.push((function () {
 				slideContentObj: slideContent
 			};
 		});
-
+		if (callResult && callResult.error === "failed_to_add_note") {
+			throw new window.AgentState.ToolError("failed to add note. Parametes: Text: " + callResult.text + ", slideNumber: " + callResult.slideNumber);
+		}
 		if (callResult && callResult.error === "slide_not_found") {
 			throw new window.AgentState.ToolError("Slide " + params.slideNumber + " does not exist! The presentation has " + callResult.slidesCount + " slides.");
 		}
@@ -1628,12 +1645,12 @@ HELPERS.slide.push((function () {
 			throw new window.AgentState.ToolError("failed to add note it must be either a plain text or an LLM prompt, request cannot contain both. Parametes: Text: " + callResult.text + ", request: " + callResult.request);
 		}
 
+		// If text is passed, we are done. Otherwise, we continue to LLM case.
+		if (Asc.scope.params.text) return; 
 
-		// Should be null or empty if LLM branch. 
-		var text = Asc.scope.params.text;
+		var text = '';
 
 		if (Asc.scope.params.request) {
-
 			// Create LLM request
 			let llmPrompt =
 				`You are an AI chatbox. You are tasked to generate notes to a specific slide of a presentation. 
@@ -1657,13 +1674,16 @@ HELPERS.slide.push((function () {
 
 			await Asc.Editor.callMethod("StartAction", ["Block", "AI (" + requestEngine.modelUI.name + ")"]);
 			await Asc.Editor.callMethod("StartAction", ["GroupActions"]);
-
-			text = await requestEngine.chatRequest(llmPrompt, false, async function (data) {
-				if (!data)
-					return;
+			try {
+				text = await requestEngine.chatRequest(llmPrompt, false, async function (data) {
+					if (!data)
+						return;
+					await checkEndAction();
+				});
+			}
+			catch (error) {
 				await checkEndAction();
-			});
-
+			}
 			await checkEndAction();
 			await Asc.Editor.callMethod("EndAction", ["GroupActions"]);
 		}
@@ -1680,6 +1700,8 @@ HELPERS.slide.push((function () {
 			else {
 				slide = presentation.GetCurrentSlide();
 			}
+			if (!slide) return;
+
 			if (!slide.AddNotesText(text)) {
 				return { error: "failed_to_add_note", text: text, slideNumber: slide.GetSlideIndex() }
 			}

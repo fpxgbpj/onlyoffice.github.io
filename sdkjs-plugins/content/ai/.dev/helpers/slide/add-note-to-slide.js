@@ -138,6 +138,7 @@
 				let tableResults = [];
 				try {
 					let aTables = slide.GetAllTables();
+					console.log(('aTables'));
 					console.log((aTables));
 					for (let i = 0; i < aTables.length; i++) {
 						let table = aTables[i];
