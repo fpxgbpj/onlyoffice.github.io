@@ -1606,13 +1606,17 @@ HELPERS.slide.push((function () {
 						let rows = [];
 						let nRows = table.GetRowsCount ? table.GetRowsCount() : 0;
 						let nCols = table.GetColsCount ? table.GetColsCount() : 0;
+						console.log((nRows));
+						console.log((nCols));
 						for (let r = 0; r < nRows; r++) {
 							let row = [];
 							for (let c = 0; c < nCols; c++) {
 								let cell = table.GetCell(r, c);
+								console.log((cell));
 								let text = "";
 								if (cell && cell.GetContent) {
 									let content = cell.GetContent();
+									console.log((content));
 									if (content && content.GetText) text = content.GetText();
 								}
 								row.push(text);
