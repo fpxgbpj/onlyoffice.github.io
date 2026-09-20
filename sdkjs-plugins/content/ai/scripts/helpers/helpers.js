@@ -1603,6 +1603,7 @@ HELPERS.slide.push((function () {
 					console.log((aTables));
 					for (let i = 0; i < aTables.length; i++) {
 						let table = aTables[i];
+						console.log((table));
 						let rows = [];
 						let nRows = table.GetRowsCount ? table.GetRowsCount() : 0;
 						let nCols = table.GetColsCount ? table.GetColsCount() : 0;
