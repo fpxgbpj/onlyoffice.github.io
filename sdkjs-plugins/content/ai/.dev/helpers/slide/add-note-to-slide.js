@@ -138,30 +138,28 @@
 				let tableResults = [];
 				try {
 					let aTables = slide.GetAllTables();
-					console.log(('aTables'));
-					console.log((aTables));
 					for (let i = 0; i < aTables.length; i++) {
 						let table = aTables[i];
 						console.log((table));
 						let rows = [];
-						let nRows = table.GetRowsCount ? table.GetRowsCount() : 0;
-						let nCols = table.GetColsCount ? table.GetColsCount() : 0;
-						console.log((nRows));
-						console.log((nCols));
-						for (let r = 0; r < nRows; r++) {
+						let k=0;
+						let rowObj = table.GetRow(k++);
+						console.log((rowObj));
+						while (rowObj) {
 							let row = [];
+							let nCols = rowObj.GetCellsCount();
 							for (let c = 0; c < nCols; c++) {
-								let cell = table.GetCell(r, c);
+								let cell = rowObj.GetCell(c);
 								console.log((cell));
-								let text = "";
-								if (cell && cell.GetContent) {
-									let content = cell.GetContent();
-									console.log((content));
-									if (content && content.GetText) text = content.GetText();
+								let cellText = "";
+								if (cell && cell.GetText) {
+									let cellText = cell.GetText();
+									console.log((cellText));
 								}
-								row.push(text);
+								row.push(cellText);
 							}
 							rows.push(row);
+							rowObj = table.GetRow(k++);
 						}
 						tableResults.push(rows);
 					}
