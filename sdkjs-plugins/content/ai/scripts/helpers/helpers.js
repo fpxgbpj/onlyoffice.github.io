@@ -1601,33 +1601,24 @@ HELPERS.slide.push((function () {
 					let aTables = slide.GetAllTables();
 					for (let i = 0; i < aTables.length; i++) {
 						let table = aTables[i];
-						console.log((table));
 						let rows = [];
 						let k=0;
 						let rowObj = table.GetRow(k++);
-						console.log((rowObj));
 						while (rowObj) {
 							let row = [];
 							let nCols = rowObj.GetCellsCount();
 							for (let c = 0; c < nCols; c++) {
-								let cell = rowObj.GetCell(c);
-								console.log((cell));
-								let cellText = "";
-								if (cell && cell.GetText) {
-									cellText = cell.GetText();
-								}
+								let cell = rowObj && rowObj.GetCell ? rowObj.GetCell(c) : null;
+								let cellText = cell && cell.GetText ? cell.GetText() : "";
 								row.push(cellText);
 							}
 							rows.push(row);
 							rowObj = table.GetRow(k++);
-							console.log((rowObj));
 						}
 						tableResults.push(rows);
-						console.log(tableResults);
 					}
 				}
 				catch (e) {
-					console.log(e)
 				}
 				let tableJsonContents = JSON.stringify(tableResults);
 
