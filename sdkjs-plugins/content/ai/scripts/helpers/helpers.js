@@ -1534,14 +1534,12 @@ HELPERS.slide.push((function () {
 			let presentation = Api.GetPresentation();
 			let slide;
 			let slideContent;
-			console.log('start');
 			if (!Asc.scope.params.text && !Asc.scope.params.request) {
 				return { error: "missing_text" };
 			}
 			if (Asc.scope.params.text && Asc.scope.params.request) {
 				return { error: "invalid_text_and_request" };
 			}
-			console.log('valid input type');
 
 			if (Asc.scope.params.slideNumber) {
 				slide = presentation.GetSlideByIndex(Asc.scope.params.slideNumber - 1);
@@ -1552,11 +1550,9 @@ HELPERS.slide.push((function () {
 			}
 
 			if (!slide) return;
-			console.log('valid slide num');
 
 			// Fetch slide content for LLM case
 			if (Asc.scope.params.request) {
-				console.log('start reading slide content');
 
 				// Get slide content. Tolerate errors.
 				let shapesContent = [];
@@ -1580,15 +1576,11 @@ HELPERS.slide.push((function () {
 					}
 					// Tolerate failures reading slide content
 					catch (e) {
-						console.log("failed to read shape internal contents ")
-						console.log(e)
 					}
 					if (shapeText) shapesContent.push(shapeText);
 				}
-				console.log('finished reading shapes');
 
 				let shapesResult = shapesContent.join("\n\n");
-				console.log('start reading tables');
 
 				// Get slide content from tables. Tolerate errors.
 				let tableResults = [];
@@ -1616,14 +1608,10 @@ HELPERS.slide.push((function () {
 					}
 				}
 				catch (e) {
-					console.log("failed to read table contents")
-					console.log(e)
 				}
 				let tableJsonContents = JSON.stringify(tableResults);
-				console.log('finished reading tables');
 
 				slideContent = "Plain text of the slide: " + shapesResult + "\n\n" + "Contents of tables on the slide: " + tableJsonContents;
-				console.log(slideContent);
 			}
 			return {
 				slideContentObj: slideContent
@@ -1640,14 +1628,11 @@ HELPERS.slide.push((function () {
 			throw new window.AgentState.ToolError("failed to add note it must be either a plain text or an LLM prompt, request cannot contain both. Parametes: Text: " + callResult.text + ", request: " + callResult.request);
 		}
 
-		console.log('finished 1st Asc cmd');
-		console.log(callResult);
 
 		// Should be null or empty if LLM branch. 
 		var text = Asc.scope.params.text;
 
 		if (Asc.scope.params.request) {
-			console.log('begin llm request');
 
 			// Create LLM request
 			let llmPrompt =
@@ -1661,7 +1646,6 @@ HELPERS.slide.push((function () {
 			let requestEngine = AI.Request.create(AI.ActionType.Chat);
 			if (!requestEngine)
 				return;
-			console.log('valid request engine');
 
 			let isSendedEndLongAction = false;
 			async function checkEndAction() {
@@ -1682,8 +1666,6 @@ HELPERS.slide.push((function () {
 
 			await checkEndAction();
 			await Asc.Editor.callMethod("EndAction", ["GroupActions"]);
-			console.log('finished LLM request');
-			console.log('LLM result: ' + text);
 		}
 		Asc.scope.addNotesResult = text;
 		callResult = await Asc.Editor.callCommand(function () {
@@ -1702,11 +1684,12 @@ HELPERS.slide.push((function () {
 				return { error: "failed_to_add_note", text: text, slideNumber: slide.GetSlideIndex() }
 			}
 		})
-		console.log('end');
-		console.log(callResult);
 
 		if (callResult && callResult.error === "failed_to_add_note") {
 			throw new window.AgentState.ToolError("failed to add note. Parametes: Text: " + callResult.text + ", slideNumber: " + callResult.slideNumber);
+		}
+		if (callResult && callResult.error === "slide_not_found") {
+			throw new window.AgentState.ToolError("Slide " + params.slideNumber + " does not exist! The presentation has " + callResult.slidesCount + " slides.");
 		}
 	};
 
