@@ -34,7 +34,7 @@
 	let func = new RegisteredFunction({
 		"name": "addNoteToSlide",
 		"text": "Insert Note",
-		"description": "Adds a note to the slide. If intent is passed in the text parameter, precise text is added to the notes. If intent is passed in the request parameters, it interpreted as an LLM prompt",
+		"description": "Adds a note to the slide. If intent is passed in the text parameter, precise text is added to the notes. If intent is passed in the request parameters, it interpreted as an LLM prompt. If the request is meant to target multiple slides, call this function once for each slide.",
 		"parameters": {
 			"type": "object",
 			"properties": {
@@ -138,6 +138,7 @@
 				let tableResults = [];
 				try {
 					let aTables = slide.GetAllTables();
+					console.log((aTables));
 					for (let i = 0; i < aTables.length; i++) {
 						let table = aTables[i];
 						let rows = [];
