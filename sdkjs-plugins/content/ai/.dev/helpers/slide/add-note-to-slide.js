@@ -153,18 +153,20 @@
 								console.log((cell));
 								let cellText = "";
 								if (cell && cell.GetText) {
-									let cellText = cell.GetText();
-									console.log((cellText));
+									cellText = cell.GetText();
 								}
 								row.push(cellText);
 							}
 							rows.push(row);
 							rowObj = table.GetRow(k++);
+							console.log((rowObj));
 						}
 						tableResults.push(rows);
+						console.log(tableResults);
 					}
 				}
 				catch (e) {
+					console.log(e)
 				}
 				let tableJsonContents = JSON.stringify(tableResults);
 
