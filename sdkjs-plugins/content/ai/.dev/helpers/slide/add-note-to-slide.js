@@ -34,7 +34,10 @@
 	let func = new RegisteredFunction({
 		"name": "addNoteToSlide",
 		"text": "Insert Note",
-		"description": "Adds a note to the slide. If intent is passed in the text parameter, precise text is added to the notes. If intent is passed in the request parameters, it interpreted as an LLM prompt. If the request is meant to target multiple slides, call this function once for each slide.",
+		"description": `Adds a note to the slide. This function is particularly useful for adding speaker notes or additional context to a slide to aid in presentations.
+		If intent is passed in the text parameter, precise text is added to the notes.
+		If intent is passed in the request parameters, it interpreted as an LLM prompt. 
+		If the request is meant to target multiple slides, call this function once for each slide.`,
 		"parameters": {
 			"type": "object",
 			"properties": {
@@ -45,7 +48,7 @@
 				},
 				"text": {
 					"type": "string",
-					"description": "text to add to the note"
+					"description": "Precise text to add to the note"
 				},
 				"request": {
 					"type": "string",
@@ -67,6 +70,13 @@
 				"prompt": "make a note with AI content",
 				"arguments": { "request": "make a note with AI content" }
 			},
+			{
+				"prompt": "Write speaker notes",
+				"arguments": { "request": "write speaker notes" }
+			}, {
+				"prompt": "create a speaking script.",
+				"arguments": { "request": "create a speaking script." }
+			},
 		]
 	});
 
@@ -74,16 +84,15 @@
 		Asc.scope.params = params;
 		// Read, compute and validate parameters
 		let callResult = await Asc.Editor.callCommand(function () {
-			let presentation = Api.GetPresentation();
-			let slide;
-			let slideContent;
 			if (!Asc.scope.params.text && !Asc.scope.params.request) {
 				return { error: "missing_text" };
 			}
 			if (Asc.scope.params.text && Asc.scope.params.request) {
 				return { error: "invalid_text_and_request" };
 			}
-
+			
+			let presentation = Api.GetPresentation();
+			let slide;
 			if (Asc.scope.params.slideNumber) {
 				slide = presentation.GetSlideByIndex(Asc.scope.params.slideNumber - 1);
 				if (!slide) return { error: "slide_not_found", slidesCount: presentation.GetSlidesCount() };
@@ -94,6 +103,7 @@
 
 			if (!slide) return;
 
+
 			// If text is passed, return early here.
 			if (Asc.scope.params.text) {
 				if (!slide.AddNotesText(Asc.scope.params.text)) {
@@ -103,6 +113,8 @@
 					return;
 				}
 			}
+
+			let slideContent;
 			// Fetch slide content for LLM case
 			if (Asc.scope.params.request) {
 
@@ -141,7 +153,7 @@
 					for (let i = 0; i < aTables.length; i++) {
 						let table = aTables[i];
 						let rows = [];
-						let k=0;
+						let k = 0;
 						let rowObj = table.GetRow(k++);
 						while (rowObj) {
 							let row = [];
@@ -164,7 +176,8 @@
 				slideContent = "Plain text of the slide: " + shapesResult + "\n\n" + "Contents of tables on the slide: " + tableJsonContents;
 			}
 			return {
-				slideContentObj: slideContent
+				slideContentObj: slideContent,
+				slideNumber: slide.GetSlideIndex()
 			};
 		});
 		if (callResult && callResult.error === "failed_to_add_note") {
@@ -181,61 +194,59 @@
 		}
 
 		// If text is passed, we are done. Otherwise, we continue to LLM case.
-		if (Asc.scope.params.text) return; 
+		if (Asc.scope.params.text) return;
 
 		var text = '';
 
-		if (Asc.scope.params.request) {
-			// Create LLM request
-			let llmPrompt =
-				`You are an AI chatbox. You are tasked to generate notes to a specific slide of a presentation. 
+		// Create LLM request
+		let llmPrompt =
+			`You are an AI chatbox. You are tasked to generate notes to a specific slide of a presentation. 
 					To do that, you should primarily follow the user's request which is: ${Asc.scope.params.request}
 					To enrich your output, you should use the slide's content: ${callResult.slideContentObj}
 					Note that the slide contents and tables, may be empty. 
 					Do note make stuff up. If there is not enough context to generate notes, simply return "Not enough content"
 					If the request and presentation are not in english try to detect the language and match it in your output. 
 					`
-			let requestEngine = AI.Request.create(AI.ActionType.Chat);
-			if (!requestEngine)
-				return;
+		let requestEngine = AI.Request.create(AI.ActionType.Chat);
+		if (!requestEngine)
+			throw new window.AgentState.ToolError("Request engine is not available for the action type: " + AI.ActionType.Chat);
 
-			let isSendedEndLongAction = false;
-			async function checkEndAction() {
-				if (!isSendedEndLongAction) {
-					await Asc.Editor.callMethod("EndAction", ["Block", "AI (" + requestEngine.modelUI.name + ")"]);
-					isSendedEndLongAction = true;
-				}
+		let isSendedEndLongAction = false;
+		async function checkEndAction() {
+			if (!isSendedEndLongAction) {
+				await Asc.Editor.callMethod("EndAction", ["Block", "AI (" + requestEngine.modelUI.name + ")"]);
+				isSendedEndLongAction = true;
 			}
+		}
 
-			await Asc.Editor.callMethod("StartAction", ["Block", "AI (" + requestEngine.modelUI.name + ")"]);
-			await Asc.Editor.callMethod("StartAction", ["GroupActions"]);
-			try {
-				text = await requestEngine.chatRequest(llmPrompt, false, async function (data) {
-					if (!data)
-						return;
-					await checkEndAction();
-				});
-			}
-			catch (error) {
+		await Asc.Editor.callMethod("StartAction", ["Block", "AI (" + requestEngine.modelUI.name + ")"]);
+		await Asc.Editor.callMethod("StartAction", ["GroupActions"]);
+		try {
+			text = await requestEngine.chatRequest(llmPrompt, false, async function (data) {
+				if (!data)
+					return;
 				await checkEndAction();
-			}
+			});
+		}
+		catch (error) {
+			// If the request fails, we still want to end the action and group actions before throwing the error.
 			await checkEndAction();
 			await Asc.Editor.callMethod("EndAction", ["GroupActions"]);
+			throw new window.AgentState.ToolError("Failed to generate notes for the slide. Error: " + error.message);
 		}
+		await checkEndAction();
+		await Asc.Editor.callMethod("EndAction", ["GroupActions"]);
+
 		Asc.scope.addNotesResult = text;
+		Asc.scope.addNotesResolvedSlideNumber = callResult.slideNumber;
 		callResult = await Asc.Editor.callCommand(function () {
 			// Push result to notes
 			let text = Asc.scope.addNotesResult;
+			let slideNumber = Asc.scope.addNotesResolvedSlideNumber;
 			let presentation = Api.GetPresentation();
 			let slide;
-			if (Asc.scope.params.slideNumber) {
-				slide = presentation.GetSlideByIndex(Asc.scope.params.slideNumber - 1);
-				if (!slide) return { error: "slide_not_found", slidesCount: presentation.GetSlidesCount() };
-			}
-			else {
-				slide = presentation.GetCurrentSlide();
-			}
-			if (!slide) return;
+			slide = presentation.GetSlideByIndex(slideNumber);
+			if (!slide) return { error: "slide_not_found", slidesCount: presentation.GetSlidesCount() };
 
 			if (!slide.AddNotesText(text)) {
 				return { error: "failed_to_add_note", text: text, slideNumber: slide.GetSlideIndex() }
@@ -246,7 +257,7 @@
 			throw new window.AgentState.ToolError("failed to add note. Parametes: Text: " + callResult.text + ", slideNumber: " + callResult.slideNumber);
 		}
 		if (callResult && callResult.error === "slide_not_found") {
-			throw new window.AgentState.ToolError("Slide " + params.slideNumber + " does not exist! The presentation has " + callResult.slidesCount + " slides.");
+			throw new window.AgentState.ToolError("Slide " + Asc.scope.addNotesResolvedSlideNumber + " does not exist! The presentation has " + callResult.slidesCount + " slides.");
 		}
 	};
 
