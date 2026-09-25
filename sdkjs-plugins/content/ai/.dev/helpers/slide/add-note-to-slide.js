@@ -35,6 +35,7 @@
 		"name": "addNoteToSlide",
 		"text": "Insert Note",
 		"description": `Adds a note to the slide. This function is particularly useful for adding speaker notes or additional context to a slide to aid in presentations.
+		If slide number is not specified, the note will be added to the current slide.
 		If intent is passed in the text parameter, precise text is added to the notes.
 		If intent is passed in the request parameters, it interpreted as an LLM prompt. 
 		If the request is meant to target multiple slides, call this function once for each slide.`,
@@ -93,7 +94,7 @@
 		if (Asc.scope.params.text && Asc.scope.params.request) {
 			throw new window.AgentState.ToolError("Only one of 'text' or 'request' should be provided")
 		}
-		if ('slideNumber' in Asc.scope.params && (typeof Asc.scope.params.slideNumber !== 'number' || Asc.scope.params.slideNumber < 1)) {
+		if ('slideNumber' in Asc.scope.params && ( !Number.isInteger(Asc.scope.params.slideNumber) || Asc.scope.params.slideNumber < 1)) {
 			throw new window.AgentState.ToolError("Invalid slide number. Please provide a positive integer slide number.");
 		}
 
