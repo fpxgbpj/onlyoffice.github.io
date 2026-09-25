@@ -1681,7 +1681,15 @@ HELPERS.slide.push((function () {
 		}
 
 		await Asc.Editor.callMethod("StartAction", ["Block", "AI (" + requestEngine.modelUI.name + ")"]);
-		await Asc.Editor.callMethod("StartAction", ["GroupActions"]);
+
+		try {
+			await Asc.Editor.callMethod("StartAction", ["GroupActions"]);
+		}
+		catch (error) {
+			await checkEndAction();
+			throw new window.AgentState.ToolError("Failed to start group actions. Error: " + error.message);
+		}
+
 		try {
 			text = await requestEngine.chatRequest(llmPrompt, false, async function (data) {
 				if (!data)
@@ -1718,7 +1726,7 @@ HELPERS.slide.push((function () {
 			throw new window.AgentState.ToolError("failed to add note. Parametes: Text: " + callResult.text + ", slideNumber: " + callResult.slideNumber);
 		}
 		if (callResult && callResult.error === "slide_not_found") {
-			throw new window.AgentState.ToolError("Slide " + Asc.scope.addNotesResolvedSlideNumber + " does not exist! The presentation has " + callResult.slidesCount + " slides.");
+			throw new window.AgentState.ToolError("Slide " + Asc.scope.addNotesResolvedSlideNumber + " does not exist. It was removed from the presentation before the operation could be completed. The presentation has " + callResult.slidesCount + " slides.");
 		}
 	};
 
