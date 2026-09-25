@@ -73,24 +73,33 @@
 			{
 				"prompt": "Write speaker notes",
 				"arguments": { "request": "write speaker notes" }
-			}, {
+			},
+			{
 				"prompt": "create a speaking script.",
 				"arguments": { "request": "create a speaking script." }
+			},
+			{
+				"prompt": "generate talking points for this slide",
+				"arguments": { "request": "generate talking points for this slide" }
 			},
 		]
 	});
 
 	func.call = async function (params) {
 		Asc.scope.params = params;
+		if (!Asc.scope.params.text && !Asc.scope.params.request) {
+			throw new window.AgentState.ToolError("No text was passed to the addNoteToSlide")
+		}
+		if (Asc.scope.params.text && Asc.scope.params.request) {
+			throw new window.AgentState.ToolError("Only one of 'text' or 'request' should be provided")
+		}
+		if ('slideNumber' in Asc.scope.params && (typeof Asc.scope.params.slideNumber !== 'number' || Asc.scope.params.slideNumber < 1)) {
+			throw new window.AgentState.ToolError("Invalid slide number. Please provide a positive integer slide number.");
+		}
+
 		// Read, compute and validate parameters
 		let callResult = await Asc.Editor.callCommand(function () {
-			if (!Asc.scope.params.text && !Asc.scope.params.request) {
-				return { error: "missing_text" };
-			}
-			if (Asc.scope.params.text && Asc.scope.params.request) {
-				return { error: "invalid_text_and_request" };
-			}
-			
+
 			let presentation = Api.GetPresentation();
 			let slide;
 			if (Asc.scope.params.slideNumber) {
@@ -101,7 +110,7 @@
 				slide = presentation.GetCurrentSlide();
 			}
 
-			if (!slide) return;
+			if (!slide) return { error: "no_current_slide" };
 
 
 			// If text is passed, return early here.
@@ -109,9 +118,8 @@
 				if (!slide.AddNotesText(Asc.scope.params.text)) {
 					return { error: "failed_to_add_note", text: Asc.scope.params.text, slideNumber: slide.GetSlideIndex() }
 				}
-				else {
-					return;
-				}
+				return;
+
 			}
 
 			let slideContent;
@@ -186,11 +194,8 @@
 		if (callResult && callResult.error === "slide_not_found") {
 			throw new window.AgentState.ToolError("Slide " + params.slideNumber + " does not exist! The presentation has " + callResult.slidesCount + " slides.");
 		}
-		if (callResult && callResult.error === "missing_text") {
-			throw new window.AgentState.ToolError("No text was passed to the addNoteToSlide");
-		}
-		if (callResult && callResult.error === "invalid_text_and_request") {
-			throw new window.AgentState.ToolError("failed to add note it must be either a plain text or an LLM prompt, request cannot contain both. Parametes: Text: " + callResult.text + ", request: " + callResult.request);
+		if (callResult && callResult.error === "no_current_slide") {
+			throw new window.AgentState.ToolError("No current slide available.");
 		}
 
 		// If text is passed, we are done. Otherwise, we continue to LLM case.
@@ -200,10 +205,10 @@
 
 		// Create LLM request
 		let llmPrompt =
-			`You are an AI chatbox. You are tasked to generate notes to a specific slide of a presentation. 
+			`You are an AI chatbot. You are tasked to generate notes to a specific slide of a presentation. 
 					To do that, you should primarily follow the user's request which is: ${Asc.scope.params.request}
 					To enrich your output, you should use the slide's content: ${callResult.slideContentObj}
-					Note that the slide contents and tables, may be empty. 
+					Note that the slide's content and tables may be empty. 
 					Do note make stuff up. If there is not enough context to generate notes, simply return "Not enough content"
 					If the request and presentation are not in english try to detect the language and match it in your output. 
 					`
